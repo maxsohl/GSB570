@@ -73,10 +73,68 @@ pop_long_df <- pop_merged_df %>%
 #Merge
 merged_data <- merge(matched_data,pop_long_df, by.x = c("YEAR", "Region"), by.y = c("YEAR", "COUNTY"))
 
+write.csv(merged_data, "merged_data.csv", row.names = FALSE)
 
-################################################## HPI ############################################################
+########################################################################################################
+
+#Using Merged_data 
+#RUN ARIMAX Model with CPI, Inflation Rate, Unemployment, GDP per capita, home supply, median hhi
+
+myregressors <- cbind(merged_data$UNRATE..., merged_data$INFLATION...)
+
+myts <- ts(merged_data$`Median Sale Price`, frequency = 12, start = c(2012, 1))
+
+myts <- cbind(myts, myregressors)
+
+order <- c(1,1,1)
+xreg <- myregressors
+
+myarimax <- arima(myts, order=order, xreg=xreg, include.mean=TRUE)
+summary(myarimax)
 
 
-HPI_US_df<- read.csv("USSTHPI.csv")
+library(forecast)
 
+# Create a matrix of additional regressors
+myregressors <- cbind(merged_data$GDP.PER.CAPITA,merged_data$MONTHLY.HOME.SUPPLY)
+
+# Create a time series object
+myts <- ts(merged_data$`Median Sale Price`, frequency = 12, start = c(2012, 1))
+
+# Fit the ARIMAX model using auto.arima
+myarimax <- auto.arima(myts, xreg = myregressors, seasonal = FALSE)
+
+# Print the summary of the model
+summary(myarimax)
+
+#With 5 regressors 
+sf_price <- merged_data$Region == 'San Francisco County, CA'
+sf_df <- subset(merged_data, Region == 'San Francisco County, CA')
+sf_price <- sf_df[,'Median Sale Price']
+myregressors <- cbind(sf_df$GDP.PER.CAPITA,sf_df$MONTHLY.HOME.SUPPLY,sf_df$INFLATION...,sf_df$UNRATE...,sf_df$MORTGAGE.INT..MONTHLY.AVG...,sf_df$MED.HOUSEHOLD.INCOME)
+
+sf_ar_reg <- arima(sf_price,xreg = myregressors, order=c(2,0,0),seasonal=list(order=c(1,0,2),period=12))
+summary(sf_ar_reg)
+
+#with 2
+sf_price <- merged_data$Region == 'San Francisco County, CA'
+sf_df <- subset(merged_data, Region == 'San Francisco County, CA')
+sf_price <- sf_df[,'Median Sale Price']
+myregressors <- cbind(sf_df$GDP.PER.CAPITA,sf_df$MONTHLY.HOME.SUPPLY)
+
+sf_ar_reg <- arima(sf_price,xreg = myregressors, order=c(2,0,0),seasonal=list(order=c(1,0,2),period=12))
+summary(sf_ar_reg)
+
+#With other 3:,sf_df$INFLATION...,sf_df$UNRATE...,sf_df$MORTGAGE.INT..MONTHLY.AVG...,sf_df$MED.HOUSEHOLD.INCOME
+sf_price <- merged_data$Region == 'San Francisco County, CA'
+sf_df <- subset(merged_data, Region == 'San Francisco County, CA')
+sf_price <- sf_df[,'Median Sale Price']
+myregressors <- cbind(sf_df$UNRATE...,sf_df$MORTGAGE.INT..MONTHLY.AVG...,sf_df$MED.HOUSEHOLD.INCOME)
+
+sf_ar_reg <- arima(sf_price,xreg = myregressors, order=c(2,0,0),seasonal=list(order=c(1,0,2),period=12))
+summary(sf_ar_reg)
+
+#Original model
+sf_ar <- arima(sf_price, order=c(2,0,0),seasonal=list(order=c(1,0,2),period=12))
+summary(sf_ar)
 
