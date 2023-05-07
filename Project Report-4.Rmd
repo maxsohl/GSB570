@@ -1,0 +1,208 @@
+---
+title: "Report"
+author: "Kriti Saxena"
+date: "2023-04-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+options(scipen = 9999)
+library(dplyr)
+library(ggplot2)
+library(here)
+library(tidyr)
+library(readxl)
+library(tidyverse)
+library(gridExtra)
+#install.packages("psych")
+library(psych)
+#install.packages("moments")
+library(moments)
+library(lubridate)
+library(tseries)
+```
+
+```{r}
+data_month = read_excel("Data.xlsx")
+#data_change_month = read_excel("Data.xlsx", sheet = "MoM")
+#data_change_year = read_excel("Data.xlsx", sheet = "YoY")
+```
+
+```{r}
+data_monthly_sale <- data_month %>%
+  pivot_wider(names_from = "Region", values_from = "Median Sale Price")
+data_monthly_sale <- na.omit(data_monthly_sale)
+```
+
+```{r}
+data_monthly_sale$MOM_sf_1 <- c(NA, diff(data_monthly_sale$`San Francisco County, CA`))
+data_monthly_sale$MOM_yc_1 <- c(NA, diff(data_monthly_sale$`Yuba County, CA`))
+data_monthly_sale_1 <- data_monthly_sale[-1, ]
+ts_data_sf = data_monthly_sale_1$MOM_sf_1
+ts_data_yc = data_monthly_sale_1$MOM_sf_1
+# Perform the ADF test
+adf.test(ts_data_sf)
+adf.test(ts_data_yc)
+```
+
+```{r}
+data_monthly_sale$`Month of Period End` <- as.Date(paste0(data_monthly_sale$`Month of Period End`, " 1"), format = "%B %Y %d")
+
+data_monthly_sale$MOM_sf <- c(NA, diff(log(data_monthly_sale$`San Francisco County, CA`)))
+data_monthly_sale$MOM_yc <- c(NA, diff(log(data_monthly_sale$`Yuba County, CA`)))
+
+YOY_sf <- (data_monthly_sale$`San Francisco County, CA` / lag(data_monthly_sale$`San Francisco County, CA`)) - 1
+YOY_sf <- ifelse(is.infinite(YOY_sf), NA, YOY_sf)
+
+YOY_yc <- (data_monthly_sale$`Yuba County, CA` / lag(data_monthly_sale$`Yuba County, CA`)) - 1
+YOY_yc <- ifelse(is.infinite(YOY_yc), NA, YOY_yc)
+
+new_data_yc <- data.frame("Month of Period End" = data_monthly_sale$`Month of Period End`, "YOY_yc" = YOY_yc)
+
+new_data <- data.frame("Month of Period End" = data_monthly_sale$`Month of Period End`, "YOY_sf" = YOY_sf)
+
+colnames(data_monthly_sale)[1] <- "Month of Period End"
+colnames(new_data)[1] <- "Month of Period End"
+
+colnames(data_monthly_sale)[1] <- "Month of Period End"
+colnames(new_data_yc)[1] <- "Month of Period End"
+
+data_monthly_sale <- merge(data_monthly_sale, new_data, by = "Month of Period End")
+data_monthly_sale <- merge(data_monthly_sale, new_data_yc, by = "Month of Period End")
+data_monthly_sale
+```
+```{r}
+data_monthly_sale_1 <- data_monthly_sale[-1, ]
+ts_data_sf = data_monthly_sale_1$MOM_sf
+ts_data_yc = data_monthly_sale_1$MOM_yc
+
+# Perform the ADF test
+adf.test(ts_data_sf)
+adf.test(ts_data_yc)
+```
+
+
+```{r}
+data <- data_monthly_sale %>% select(`Month of Period End`, `San Francisco County, CA`) %>%
+  rename(Price = `San Francisco County, CA`)
+
+data_2 <- data_monthly_sale %>% select(`Month of Period End`, `Yuba County, CA`) %>% 
+  rename(Price = `Yuba County, CA`)
+
+p <- ggplot(data, aes(x = `Month of Period End`, y = Price)) +
+  geom_line() +
+  labs(x = "Year", y = "Median Sale Price",
+       title = "San Francisco County Median Housing Prices") +
+  theme_bw() 
+
+q <- ggplot(data_2, aes(x = `Month of Period End`, y = Price)) +
+  geom_line() +
+  labs(x = "Year", y = "Median Sale Price",
+       title = "Yuba County Median Housing Prices") +
+  theme_bw() 
+
+grid.arrange(p, q, ncol=1)
+```
+# Month-On-Month Changes 
+```{r}
+#data_mom <- data_change_month %>%
+#  pivot_wider(names_from = "Region", values_from = "Median Sale Price MoM")
+#data_mom$Month <- as.Date(paste0(data_mom$`Month of Period End`, " 1"), format = "%B %Y %d")
+
+data_mom_sf <- data_monthly_sale %>% select(`Month of Period End`, MOM_sf) %>% 
+  rename(Price = MOM_sf)
+
+data_mom_yc <- data_monthly_sale %>% select(`Month of Period End`, MOM_yc) %>% 
+  rename(Price = MOM_yc)
+
+s <- ggplot(data_mom_sf, aes(x = `Month of Period End`, y = Price)) +
+  geom_line() +
+  labs(x = "Year", y = "Median Sale Price",
+       title = "San Francisco County Month on Month Change") +
+  theme_bw() 
+
+y <- ggplot(data_mom_yc, aes(x = `Month of Period End`, y = Price)) +
+  geom_line() +
+  labs(x = "Year", y = "Median Sale Price",
+       title = "Yuba County Month on Month Change") +
+  theme_bw() 
+
+grid.arrange(s, y, ncol=1)
+```
+# Year-On-Year Changes
+```{r}
+#data_yoy <- data_change_year %>%
+#  pivot_wider(names_from = "Region", values_from = "Median Sale Price YoY")
+#data_yoy$Month <- as.Date(paste0(data_yoy$`Month of Period End`, " 1"), format = "%B %Y %d")
+
+data_yoy_sf <- data_monthly_sale %>% select(`Month of Period End`, YOY_sf) %>% 
+  rename(Price = YOY_sf)
+
+data_yoy_yc <- data_monthly_sale %>% select(`Month of Period End`, YOY_yc) %>% 
+  rename(Price = YOY_yc)
+
+s_yoy <- ggplot(data_yoy_sf, aes(x = `Month of Period End`, y = Price)) +
+  geom_line() +
+  labs(x = "Year", y = "Median Sale Price",
+       title = "San Francisco County Year on Year Change") +
+  theme_bw() 
+
+y_yoy <- ggplot(data_yoy_yc, aes(x =`Month of Period End`, y = Price)) +
+  geom_line() +
+  labs(x = "Year", y = "Median Sale Price",
+       title = "Yuba County Year on Year Change") +
+  theme_bw() 
+
+grid.arrange(s_yoy, y_yoy, ncol=1)
+```
+
+# Descriptive Statistics 
+```{r}
+# central tendency 
+summary(data_monthly_sale$`San Francisco County, CA`)
+summary(data_monthly_sale$`Yuba County, CA`)
+```
+
+```{r}
+# Variability 
+#hist(data_monthly_sale$`San Luis Obispo County, CA`)
+
+slo <- ggplot(data_monthly_sale, aes(x = `San Francisco County, CA`)) + 
+  geom_histogram(aes(y = ..density..), bins = 30, color = "black", fill = "white") +
+  geom_density(alpha = .2, fill="#FF6666") +
+  xlab("Price") + ylab("Density") + theme_bw() + ggtitle("San Francisco County Distribution")
+
+yuba <- ggplot(data_monthly_sale, aes(x = `Yuba County, CA`)) + 
+  geom_histogram(aes(y = ..density..), bins = 30, color = "black", fill = "white") +
+  geom_density(alpha = .2, fill="#FF6666") +
+  xlab("Price") + ylab("Density") + theme_bw() + ggtitle("Yuba County Distribution")
+
+grid.arrange(slo, yuba, ncol=1)
+```
+
+```{r}
+# Range 
+range(data_monthly_sale$`San Francisco County, CA`)
+range(data_monthly_sale$`Yuba County, CA`)
+
+# Variance 
+var(data_monthly_sale$`San Francisco County, CA`)
+var(data_monthly_sale$`Yuba County, CA`)
+
+#Standard Deviation 
+sd(data_monthly_sale$`San Francisco County, CA`)
+sd(data_monthly_sale$`Yuba County, CA`)
+
+#Skewness
+skewness(data_monthly_sale$`San Francisco County, CA`)
+skewness(data_monthly_sale$`Yuba County, CA`)
+
+#Kurtosis 
+kurtosis(data_monthly_sale$`San Francisco County, CA`)
+kurtosis(data_monthly_sale$`Yuba County, CA`)
+```
+
